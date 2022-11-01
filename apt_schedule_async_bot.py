@@ -208,6 +208,7 @@ async def get_text_today(message):
             await bot.reply_to(message, f'Подождите {seconds_left} секунд перед выполнение этой команды')
         else:
             CHAT_BY_DATETIME[message.chat.id] = current_time
+
             async def get_result_today(user_id: int):
                 cursor.execute("SELECT user_group FROM test WHERE user_id = ?", (user_id,))
                 group = cursor.fetchone()
@@ -248,6 +249,7 @@ async def get_text_tomorrow(message):
             await bot.reply_to(message, f'Подождите {seconds_left} секунд перед выполнение этой команды')
         else:
             CHAT_BY_DATETIME[message.chat.id] = current_time
+
             async def get_result_tomorrow(user_id: int):
                 cursor.execute("SELECT user_group FROM test WHERE user_id = ?", (user_id,))
                 group = cursor.fetchone()
@@ -256,8 +258,7 @@ async def get_text_tomorrow(message):
                     my_group = group[0]
 
                     tomorrow = pendulum.tomorrow('Europe/Moscow').format('YYYY-MM-DD')
-                    response_check_tomorrow = requests.get(
-                        f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{tomorrow}')
+                    response_check_tomorrow = requests.get(f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{tomorrow}')
                     soup = BeautifulSoup(response_check_tomorrow.text, 'lxml')
                     schedule = soup.find("div", class_="container")
 
@@ -288,6 +289,7 @@ async def get_screen_today(message):
             await bot.reply_to(message, f'Подождите {seconds_left} секунд перед выполнение этой команды')
         else:
             CHAT_BY_DATETIME[message.chat.id] = current_time
+
             async def get_screenshot_today(user_id: int):
                 cursor.execute("SELECT user_group FROM test WHERE user_id = ?", (user_id,))
                 group = cursor.fetchone()
@@ -306,8 +308,7 @@ async def get_screen_today(message):
                     else:
                         CHAT_BY_DATETIME[message.chat.id] = current_time
                         today = pendulum.today('Europe/Moscow').format('YYYY-MM-DD')
-                        response_today = requests.get(
-                            f"https://almetpt.ru/2020/site/schedule/group/{my_group}/{today}")
+                        response_today = requests.get(f"https://almetpt.ru/2020/site/schedule/group/{my_group}/{today}")
                         soup = BeautifulSoup(response_today.text, "lxml")
                         schedule = soup.find("div", class_="container")
 
@@ -345,6 +346,7 @@ async def get_screen_tomorrow(message):
             await bot.reply_to(message, f'Подождите {seconds_left} секунд перед выполнение этой команды')
         else:
             CHAT_BY_DATETIME[message.chat.id] = current_time
+
             async def get_screenshot_tomorrow(user_id: int):
                 cursor.execute("SELECT user_group FROM test WHERE user_id = ?", (user_id,))
                 group = cursor.fetchone()
@@ -353,8 +355,7 @@ async def get_screen_tomorrow(message):
                     my_group = group[0]
 
                     tomorrow = pendulum.tomorrow('Europe/Moscow').format('YYYY-MM-DD')
-                    response_check_tomorrow = requests.get(
-                        f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{tomorrow}')
+                    response_check_tomorrow = requests.get(f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{tomorrow}')
                     soup = BeautifulSoup(response_check_tomorrow.text, 'lxml')
                     schedule = soup.find("div", class_="container")
 
@@ -408,8 +409,7 @@ async def monday(message):
                 today = datetime.date.today()
                 if calendar.day_name[today.weekday()] == 'Saturday':
                     monday = today + datetime.timedelta(days=2)
-                    response_check_tomorrow = requests.get(
-                        f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{monday}')
+                    response_check_tomorrow = requests.get(f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{monday}')
                     soup = BeautifulSoup(response_check_tomorrow.text, 'lxml')
                     schedule = soup.find("div", class_="container")
 
@@ -427,8 +427,7 @@ async def monday(message):
 
                 elif calendar.day_name[today.weekday()] == 'Sunday':
                     monday = today + datetime.timedelta(days=1)
-                    response_check_tomorrow = requests.get(
-                        f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{monday}')
+                    response_check_tomorrow = requests.get(f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{monday}')
                     soup = BeautifulSoup(response_check_tomorrow.text, 'lxml')
                     schedule = soup.find("div", class_="container")
 
@@ -512,6 +511,7 @@ async def admin_rep(message):
     cursor.execute("SELECT user_id, user_group FROM test")
     matches = cursor.fetchall()
     d = dict(matches)
+
     for key, value in list(d.items()):
         if value is None:
             del d[key]
