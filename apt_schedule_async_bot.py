@@ -378,12 +378,6 @@ async def get_screen_tomorrow(message):
                 await bot.send_photo(message.chat.id, open(screen, 'rb'))
 
 
-@bot.message_handler(text=['Изменить группу📎'])
-async def request_group(message):
-    await bot.set_state(message.from_user.id, UserState.group, message.chat.id)
-    await bot.send_message(message.chat.id, 'Введите группу (без лишних букв и символов, например ИС211):')
-
-
 @bot.message_handler(text=['Расписание на понедельник📅'])
 async def monday(message):
     async def check_monday(user_id: int):
@@ -562,6 +556,12 @@ async def admin_rep(message):
 @bot.message_handler(commands=['admin_check'])
 async def not_admin(message):
     await bot.send_message(message.chat.id, "Вам не разрешено использовать эту команду.")
+
+
+@bot.message_handler(text=['Изменить группу📎'])
+async def request_group(message):
+    await bot.set_state(message.from_user.id, UserState.group, message.chat.id)
+    await bot.send_message(message.chat.id, 'Введите группу (без лишних букв и символов, например ИС211):')
 
 
 @bot.message_handler(state=UserState.group)
