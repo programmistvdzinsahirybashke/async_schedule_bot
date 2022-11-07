@@ -13,7 +13,6 @@ from telebot import types, asyncio_filters
 from telebot.asyncio_handler_backends import State, StatesGroup
 import configure
 
-
 global GROUP_ID
 CHAT_BY_DATETIME = {}
 GROUP_ID = {
@@ -167,17 +166,21 @@ async def format_result(result):
     result = result.replace("1210 - 1330", "\n4️⃣     <b>12:10 - 13:30</b>\n\n")
     result = result.replace("1340 - 1500", "\n5️⃣     <b>13:40 - 15:00</b>\n\n")
     result = result.replace("1520 - 1640", "\n6️⃣     <b>15:20 - 16:40</b>\n\n")
+    result = result.replace("1645 - 1805", "\n7️⃣     <b>16:45 - 18:05</b>\n\n")
+    result = result.replace("1810 - 1925", "\n8️⃣     <b>18:10 - 19:25</b>\n\n")
     result = result.replace("0730 - 0840", "\n1️     <b>7:30 - 8:40</b>\n")
     result = result.replace("0845 - 0955", "\n2️⃣     <b>8:45 - 9:55</b>\n")
     result = result.replace("1000 - 1110", "\n3️⃣     <b>10:00 - 11:10</b>\n")
     result = result.replace("1210 - 1330", "\n4️⃣     <b>12:10 - 13:30</b>\n")
     result = result.replace("1340 - 1500", "\n5️⃣     <b>13:40 - 15:00</b>\n")
-    result = result.replace("ауд.", "Аудитория:")
-    result = result.replace("преп.", "Преподаватель:")
+    result = result.replace("ауд.", "<b>Аудитория</b>: ")
+    result = result.replace("преп.", "<b>Преподаватель</b>: ")
     if "Расписание занятий групп" in result:
         result = result.split("года")[1]
     if "большая перемена 25 минут" in result:
         result = result.replace("большая перемена 25 минут", "")
+    if "большая перемена 20 минут" in result:
+        result = result.replace("большая перемена 20 минут", "")
     if "пара" in result:
         result = result.replace("I пара", "")
         result = result.replace("II пара", "")
@@ -185,12 +188,63 @@ async def format_result(result):
         result = result.replace("IV пара", "")
         result = result.replace("V пара", "")
         result = result.replace("VI пара", "")
+        result = result.replace("V", "")
         result = result.replace("I", "")
     result = result.replace("\n\n\n\n\n\n", "\n")
     result = result.replace("\n\n\n\n", "\n")
     result = result.replace("\n\n\n", "\n")
     result = result.replace("\n\n", "\n")
     return result
+
+
+@bot.message_handler(text=['Изменить группу📎'])
+async def request_group(message):
+    await bot.set_state(message.from_user.id, UserState.group, message.chat.id)
+    await bot.send_message(message.chat.id, 'Введите группу (без лишних букв и дефисов, например ис211, экс202:')
+
+
+@bot.message_handler(state=UserState.group)
+async def update_group(message):
+    async with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+        data['group'] = message.text
+        GROUP = data['group'].upper()
+    if GROUP not in GROUP_ID:
+        await bot.reply_to(message, f"Группа введена неверно, введите "
+                                    f"группу в правильном формате!\nВы ввели: {GROUP}")
+        await bot.set_state(message.from_user.id, UserState.group, message.chat.id)
+        await bot.send_message(message.chat.id, 'Введите группу (без лишних букв и символов, например ис211, экс202):')
+        async with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
+            data['group'] = message.text.upper()
+        return
+    else:
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+
+        button1 = types.KeyboardButton("Расписание на сегодня 🗓")
+        button2 = types.KeyboardButton("Расписание на завтра 🗓")
+        button3 = types.KeyboardButton("Расписание на сегодня 📱")
+        button4 = types.KeyboardButton("Расписание на завтра 📱")
+        button5 = types.KeyboardButton("Изменить группу📎")
+        button6 = types.KeyboardButton("Расписание на понедельник📅")
+        button7 = types.KeyboardButton("Профиль📌")
+        button8 = types.KeyboardButton("Помощь❓")
+
+        markup.add(button1, button2)
+        markup.add(button3, button4)
+        markup.add(button5, button6)
+        markup.add(button7, button8)
+
+        await bot.reply_to(message, f"Ваша группа: {GROUP}", reply_markup=markup)
+
+        async def update_group_val(user_group: str):
+            us_id = message.from_user.id
+            sqlite_update_query = 'UPDATE test SET user_group = ? WHERE user_id = ?'
+            column_values = (user_group, us_id)
+            cursor.execute(sqlite_update_query, column_values)
+            conn.commit()
+
+        MY_GROUP = GROUP_ID[GROUP]
+        await update_group_val(user_group=MY_GROUP)
+        await bot.delete_state(message.from_user.id, message.chat.id)
 
 
 @bot.message_handler(text=['Расписание на сегодня 🗓'])
@@ -258,7 +312,8 @@ async def get_text_tomorrow(message):
                     my_group = group[0]
 
                     tomorrow = pendulum.tomorrow('Europe/Moscow').format('YYYY-MM-DD')
-                    response_check_tomorrow = requests.get(f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{tomorrow}')
+                    response_check_tomorrow = requests.get(
+                        f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{tomorrow}')
                     soup = BeautifulSoup(response_check_tomorrow.text, 'lxml')
                     schedule = soup.find("div", class_="container")
 
@@ -355,7 +410,8 @@ async def get_screen_tomorrow(message):
                     my_group = group[0]
 
                     tomorrow = pendulum.tomorrow('Europe/Moscow').format('YYYY-MM-DD')
-                    response_check_tomorrow = requests.get(f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{tomorrow}')
+                    response_check_tomorrow = requests.get(
+                        f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{tomorrow}')
                     soup = BeautifulSoup(response_check_tomorrow.text, 'lxml')
                     schedule = soup.find("div", class_="container")
 
@@ -403,7 +459,8 @@ async def monday(message):
                 today = datetime.date.today()
                 if calendar.day_name[today.weekday()] == 'Saturday':
                     monday = today + datetime.timedelta(days=2)
-                    response_check_tomorrow = requests.get(f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{monday}')
+                    response_check_tomorrow = requests.get(
+                        f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{monday}')
                     soup = BeautifulSoup(response_check_tomorrow.text, 'lxml')
                     schedule = soup.find("div", class_="container")
 
@@ -421,7 +478,8 @@ async def monday(message):
 
                 elif calendar.day_name[today.weekday()] == 'Sunday':
                     monday = today + datetime.timedelta(days=1)
-                    response_check_tomorrow = requests.get(f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{monday}')
+                    response_check_tomorrow = requests.get(
+                        f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{monday}')
                     soup = BeautifulSoup(response_check_tomorrow.text, 'lxml')
                     schedule = soup.find("div", class_="container")
 
@@ -475,7 +533,7 @@ async def profile(message):
                     switch_group_name = {v: k for k, v in GROUP_ID.items()}
                     group_name = switch_group_name[my_group]
 
-                    return f"Ваш ник: <b><i>{result}</i></b>\n➖➖➖➖➖➖➖\nВаша группа: <b><i>{group_name}</i></b>\n➖➖➖➖➖➖➖\nВаш id: <b><i>{message.from_user.id}</i></b>"
+                    return f"Ваш ник: <b><i>{result}</i></b>\n➖➖➖➖➖➖➖\nВаша группа: <b><i>{group_name}</i></b>\n➖➖➖➖➖➖➖\nВаш id: <b><i>{message.from_user.id}</i></b>\n➖➖➖➖➖➖➖\nСменить <b>группу</b> вы можете нажав - Изменить группу📎"
 
     await bot.reply_to(message, await show_profile(message.from_user.id))
 
@@ -553,63 +611,32 @@ async def admin_rep(message):
                                )
 
 
-@bot.message_handler(commands=['admin_check'])
+@bot.message_handler(chat_id=[702999620], commands=['show_users'])
+async def admin_show(message):
+    await bot.send_message(message.chat.id, "Вам разрешено использовать эту команду.")
+    cursor.execute("SELECT user_id FROM test")
+    matches = cursor.fetchall()
+    users = list(matches)
+    count_users = 0
+
+    for user in users:
+        if user:
+            count_users += 1
+
+    await bot.send_message(702999620, f'✅ Количество пользователей в боте: <b>{count_users}</b >')
+
+
+@bot.message_handler(commands=['admin_check', 'show_users'])
 async def not_admin(message):
     await bot.send_message(message.chat.id, "Вам не разрешено использовать эту команду.")
 
 
-@bot.message_handler(text=['Изменить группу📎'])
-async def request_group(message):
-    await bot.set_state(message.from_user.id, UserState.group, message.chat.id)
-    await bot.send_message(message.chat.id, 'Введите группу (без лишних букв и символов, например ИС211):')
 
-
-@bot.message_handler(state=UserState.group)
-async def update_group(message):
-    async with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-        data['group'] = message.text
-        GROUP = data['group'].upper()
-    if GROUP not in GROUP_ID:
-        await bot.reply_to(message, f"Группа введена неверно, введите "
-                                    f"группу в правильном формате!\nВы ввели: {GROUP}")
-        await bot.set_state(message.from_user.id, UserState.group, message.chat.id)
-        await bot.send_message(message.chat.id, 'Введите группу (без лишних букв и символов, например ИС211):')
-        async with bot.retrieve_data(message.from_user.id, message.chat.id) as data:
-            data['group'] = message.text.upper()
-        return
-    else:
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-
-        button1 = types.KeyboardButton("Расписание на сегодня 🗓")
-        button2 = types.KeyboardButton("Расписание на завтра 🗓")
-        button3 = types.KeyboardButton("Расписание на сегодня 📱")
-        button4 = types.KeyboardButton("Расписание на завтра 📱")
-        button5 = types.KeyboardButton("Изменить группу📎")
-        button6 = types.KeyboardButton("Расписание на понедельник📅")
-        button7 = types.KeyboardButton("Профиль📌")
-        button8 = types.KeyboardButton("Помощь❓")
-
-        markup.add(button1, button2)
-        markup.add(button3, button4)
-        markup.add(button5, button6)
-        markup.add(button7, button8)
-
-        await bot.reply_to(message, f"Ваша группа: {GROUP}", reply_markup=markup)
-
-        async def update_group_val(user_group: str):
-            us_id = message.from_user.id
-            sqlite_update_query = 'UPDATE test SET user_group = ? WHERE user_id = ?'
-            column_values = (user_group, us_id)
-            cursor.execute(sqlite_update_query, column_values)
-            conn.commit()
-
-        MY_GROUP = GROUP_ID[GROUP]
-        await update_group_val(user_group=MY_GROUP)
 
 if __name__ == "__main__":
     while True:
         try:
-            asyncio.run(bot.polling())
+            asyncio.run(bot.polling(skip_pending=True))
         except Exception as e:
             telebot.logger.error(e)
             time.sleep(15)
