@@ -654,8 +654,6 @@ async def not_admin(message):
     await bot.send_message(message.chat.id, "Вам не разрешено использовать эту команду.")
 
 
-
-
 if __name__ == "__main__":
     while True:
         try:
