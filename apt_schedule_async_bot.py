@@ -114,7 +114,7 @@ START_TEXT = """
 
 📌Если запутался ➖ жми <b>"Помощь❓"</b>
 
-🆘<b>ВАЖНО</b> Если кнопка не работает нажмите еще раз (<b>при первом запуске тоже</b>)!
+🆘<b>ВАЖНО</b>🆘 Если какие либо кнопки не работают нажмите на них еще раз (<b>при первом запуске тоже</b>)!
 """
 HELP_TEXT = """<b>✅Помощь</b>
 
@@ -152,6 +152,9 @@ class UserState(StatesGroup):
 
 @bot.message_handler(commands=["start"])
 async def start(message, res=False):
+    date = datetime.datetime.today()
+    print("Чувак запустил бота", message.from_user.first_name, ", время запроса =", date.strftime('%H:%M:%S %m.%d '))
+
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
 
     button1 = types.KeyboardButton("Изменить группу📎")
@@ -159,17 +162,18 @@ async def start(message, res=False):
 
     markup.add(button1, button2)
 
-    async def db_table_val(user_id, nickname, username):
-        register_user = "INSERT OR IGNORE INTO test (user_id, nickname, username) VALUES (?, ?, ?)"
-        columns = (user_id, nickname, username)
+    async def db_table_val(user_id, nickname, username, last_msg_time):
+        register_user = "INSERT OR IGNORE INTO test (user_id, nickname, username, last_msg_time) VALUES (?, ?, ?, ?)"
+        columns = (user_id, nickname, username, last_msg_time)
         cursor.execute(register_user, columns)
         conn.commit()
 
     us_id = message.from_user.id
     us_name = message.from_user.first_name
     username = message.from_user.username
+    last_msg_time = datetime.datetime.now()
 
-    await db_table_val(user_id=us_id, nickname=us_name, username=username)
+    await db_table_val(user_id=us_id, nickname=us_name, username=username, last_msg_time=last_msg_time)
     await bot.reply_to(message, START_TEXT, reply_markup=markup)
 
 
@@ -272,19 +276,44 @@ async def update_group(message):
 
 @bot.message_handler(text=['Расписание на сегодня 🗓'])
 async def get_text_today(message):
+    date = datetime.datetime.today()
+    print("Получил запрос на текстовое расписание на сегодня от", message.from_user.first_name, ", время запроса =", date.strftime('%H:%M:%S %m.%d '))
     need_seconds = 5
-    current_time = datetime.datetime.now()
-    last_datetime = CHAT_BY_DATETIME.get(message.chat.id)
-    if not last_datetime:
-        CHAT_BY_DATETIME[message.chat.id] = current_time
+    current_time = str(datetime.datetime.now())
+    user_id = message.from_user.id
+    cursor.execute("SELECT last_msg_time FROM test WHERE user_id = ?", (user_id,))
+    last_datetime = cursor.fetchone()
+    last_datetime = last_datetime[0]
+    if last_datetime is None:
+        async def update_last_msg_time(last_msg_time: datetime):
+            us_id = message.from_user.id
+            sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+            column_values = (last_msg_time, us_id)
+            cursor.execute(sqlite_update_query, column_values)
+            conn.commit()
+
+        last_msg_time = datetime.datetime.now()
+        await update_last_msg_time(last_msg_time=last_msg_time)
     else:
-        delta_seconds = (current_time - last_datetime).total_seconds()
+
+        dt_from_datetime = datetime.datetime.strptime(current_time, '%Y-%m-%d %H:%M:%S.%f')
+        dt_to_datetime = datetime.datetime.strptime(last_datetime, '%Y-%m-%d %H:%M:%S.%f')
+
+        delta_seconds = (dt_from_datetime - dt_to_datetime).total_seconds()
         seconds_left = int(need_seconds - delta_seconds)
 
         if seconds_left > 0:
             await bot.reply_to(message, f'Подождите {seconds_left} секунд перед выполнение этой команды')
         else:
-            CHAT_BY_DATETIME[message.chat.id] = current_time
+            async def update_last_msg_time(last_msg_time: datetime):
+                us_id = message.from_user.id
+                sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+                column_values = (last_msg_time, us_id)
+                cursor.execute(sqlite_update_query, column_values)
+                conn.commit()
+
+            last_msg_time = datetime.datetime.now()
+            await update_last_msg_time(last_msg_time=last_msg_time)
 
             async def get_result_today(user_id: int):
                 cursor.execute("SELECT user_group FROM test WHERE user_id = ?", (user_id,))
@@ -313,19 +342,44 @@ async def get_text_today(message):
 
 @bot.message_handler(text=['Расписание на завтра 🗓'])
 async def get_text_tomorrow(message):
+    date = datetime.datetime.today()
+    print("Получил запрос на текстовое расписание на завтра от", message.from_user.first_name, ", время запроса =", date.strftime('%H:%M:%S %m.%d '))
     need_seconds = 5
-    current_time = datetime.datetime.now()
-    last_datetime = CHAT_BY_DATETIME.get(message.chat.id)
-    if not last_datetime:
-        CHAT_BY_DATETIME[message.chat.id] = current_time
+    current_time = str(datetime.datetime.now())
+    user_id = message.from_user.id
+    cursor.execute("SELECT last_msg_time FROM test WHERE user_id = ?", (user_id,))
+    last_datetime = cursor.fetchone()
+    last_datetime = last_datetime[0]
+    if last_datetime is None:
+        async def update_last_msg_time(last_msg_time: datetime):
+            us_id = message.from_user.id
+            sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+            column_values = (last_msg_time, us_id)
+            cursor.execute(sqlite_update_query, column_values)
+            conn.commit()
+
+        last_msg_time = datetime.datetime.now()
+        await update_last_msg_time(last_msg_time=last_msg_time)
     else:
-        delta_seconds = (current_time - last_datetime).total_seconds()
+
+        dt_from_datetime = datetime.datetime.strptime(current_time, '%Y-%m-%d %H:%M:%S.%f')
+        dt_to_datetime = datetime.datetime.strptime(last_datetime, '%Y-%m-%d %H:%M:%S.%f')
+
+        delta_seconds = (dt_from_datetime - dt_to_datetime).total_seconds()
         seconds_left = int(need_seconds - delta_seconds)
 
         if seconds_left > 0:
             await bot.reply_to(message, f'Подождите {seconds_left} секунд перед выполнение этой команды')
         else:
-            CHAT_BY_DATETIME[message.chat.id] = current_time
+            async def update_last_msg_time(last_msg_time: datetime):
+                us_id = message.from_user.id
+                sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+                column_values = (last_msg_time, us_id)
+                cursor.execute(sqlite_update_query, column_values)
+                conn.commit()
+
+            last_msg_time = datetime.datetime.now()
+            await update_last_msg_time(last_msg_time=last_msg_time)
 
             async def get_result_tomorrow(user_id: int):
                 cursor.execute("SELECT user_group FROM test WHERE user_id = ?", (user_id,))
@@ -354,19 +408,44 @@ async def get_text_tomorrow(message):
 
 @bot.message_handler(text=['Расписание на сегодня 📱'])
 async def get_screen_today(message):
-    need_seconds = 8
-    current_time = datetime.datetime.now()
-    last_datetime = CHAT_BY_DATETIME.get(message.chat.id)
-    if not last_datetime:
-        CHAT_BY_DATETIME[message.chat.id] = current_time
+    date = datetime.datetime.today()
+    print("Получил запрос на скриншот расписания на сегодня от", message.from_user.first_name, ", время запроса =", date.strftime('%H:%M:%S %m.%d '))
+    need_seconds = 7
+    current_time = str(datetime.datetime.now())
+    user_id = message.from_user.id
+    cursor.execute("SELECT last_msg_time FROM test WHERE user_id = ?", (user_id,))
+    last_datetime = cursor.fetchone()
+    last_datetime = last_datetime[0]
+    if last_datetime is None:
+        async def update_last_msg_time(last_msg_time: datetime):
+            us_id = message.from_user.id
+            sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+            column_values = (last_msg_time, us_id)
+            cursor.execute(sqlite_update_query, column_values)
+            conn.commit()
+
+        last_msg_time = datetime.datetime.now()
+        await update_last_msg_time(last_msg_time=last_msg_time)
     else:
-        delta_seconds = (current_time - last_datetime).total_seconds()
+
+        dt_from_datetime = datetime.datetime.strptime(current_time, '%Y-%m-%d %H:%M:%S.%f')
+        dt_to_datetime = datetime.datetime.strptime(last_datetime, '%Y-%m-%d %H:%M:%S.%f')
+
+        delta_seconds = (dt_from_datetime - dt_to_datetime).total_seconds()
         seconds_left = int(need_seconds - delta_seconds)
 
         if seconds_left > 0:
             await bot.reply_to(message, f'Подождите {seconds_left} секунд перед выполнение этой команды')
         else:
-            CHAT_BY_DATETIME[message.chat.id] = current_time
+            async def update_last_msg_time(last_msg_time: datetime):
+                us_id = message.from_user.id
+                sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+                column_values = (last_msg_time, us_id)
+                cursor.execute(sqlite_update_query, column_values)
+                conn.commit()
+
+            last_msg_time = datetime.datetime.now()
+            await update_last_msg_time(last_msg_time=last_msg_time)
 
             async def get_screenshot_today(user_id: int):
                 cursor.execute("SELECT user_group FROM test WHERE user_id = ?", (user_id,))
@@ -375,32 +454,22 @@ async def get_screen_today(message):
                 if group:
                     my_group = group[0]
 
-                if not last_datetime:
-                    CHAT_BY_DATETIME[message.chat.id] = current_time
-                else:
-                    delta_seconds = (current_time - last_datetime).total_seconds()
-                    seconds_left = int(need_seconds - delta_seconds)
+                    today = pendulum.today('Europe/Moscow').format('YYYY-MM-DD')
+                    response_today = requests.get(f"https://almetpt.ru/2020/site/schedule/group/{my_group}/{today}")
+                    soup = BeautifulSoup(response_today.text, "lxml")
+                    schedule = soup.find("div", class_="container")
 
-                    if seconds_left > 0:
-                        await bot.reply_to(message, f'Подождите {seconds_left} секунд перед выполнение этой команды')
+                    if 'года не опубликовано' in schedule.text:
+                        return "Расписания на сегодня нет."
                     else:
-                        CHAT_BY_DATETIME[message.chat.id] = current_time
-                        today = pendulum.today('Europe/Moscow').format('YYYY-MM-DD')
-                        response_today = requests.get(f"https://almetpt.ru/2020/site/schedule/group/{my_group}/{today}")
-                        soup = BeautifulSoup(response_today.text, "lxml")
-                        schedule = soup.find("div", class_="container")
-
-                        if 'года не опубликовано' in schedule.text:
-                            return "Расписания на сегодня нет."
-                        else:
-                            browser = await launch()
-                            page = await browser.newPage()
-                            await page.setViewport({'width': 850, 'height': 1050})
-                            await page.goto(f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{today}')
-                            screen_id = message.from_user.id
-                            await page.screenshot({'path': f"screenshots/{screen_id}_today.png"})
-                            await browser.close()
-                            return f"screenshots/{screen_id}_today.png"
+                        browser = await launch()
+                        page = await browser.newPage()
+                        await page.setViewport({'width': 850, 'height': 1050})
+                        await page.goto(f'https://almetpt.ru/2020/site/schedule/group/{my_group}/{today}')
+                        screen_id = message.from_user.id
+                        await page.screenshot({'path': f"screenshots/{screen_id}_today.png"})
+                        await browser.close()
+                        return f"screenshots/{screen_id}_today.png"
 
             screen = await get_screenshot_today(message.from_user.id)
             if screen == "Расписания на сегодня нет.":
@@ -411,19 +480,44 @@ async def get_screen_today(message):
 
 @bot.message_handler(text=['Расписание на завтра 📱'])
 async def get_screen_tomorrow(message):
-    need_seconds = 8
-    current_time = datetime.datetime.now()
-    last_datetime = CHAT_BY_DATETIME.get(message.chat.id)
-    if not last_datetime:
-        CHAT_BY_DATETIME[message.chat.id] = current_time
+    date = datetime.datetime.today()
+    print("Получил запрос на скриншот расписания на завтра от", message.from_user.first_name, ", время запроса =", date.strftime('%H:%M:%S %m.%d '))
+    need_seconds = 7
+    current_time = str(datetime.datetime.now())
+    user_id = message.from_user.id
+    cursor.execute("SELECT last_msg_time FROM test WHERE user_id = ?", (user_id,))
+    last_datetime = cursor.fetchone()
+    last_datetime = last_datetime[0]
+    if last_datetime is None:
+        async def update_last_msg_time(last_msg_time: datetime):
+            us_id = message.from_user.id
+            sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+            column_values = (last_msg_time, us_id)
+            cursor.execute(sqlite_update_query, column_values)
+            conn.commit()
+
+        last_msg_time = datetime.datetime.now()
+        await update_last_msg_time(last_msg_time=last_msg_time)
     else:
-        delta_seconds = (current_time - last_datetime).total_seconds()
+
+        dt_from_datetime = datetime.datetime.strptime(current_time, '%Y-%m-%d %H:%M:%S.%f')
+        dt_to_datetime = datetime.datetime.strptime(last_datetime, '%Y-%m-%d %H:%M:%S.%f')
+
+        delta_seconds = (dt_from_datetime - dt_to_datetime).total_seconds()
         seconds_left = int(need_seconds - delta_seconds)
 
         if seconds_left > 0:
             await bot.reply_to(message, f'Подождите {seconds_left} секунд перед выполнение этой команды')
         else:
-            CHAT_BY_DATETIME[message.chat.id] = current_time
+            async def update_last_msg_time(last_msg_time: datetime):
+                us_id = message.from_user.id
+                sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+                column_values = (last_msg_time, us_id)
+                cursor.execute(sqlite_update_query, column_values)
+                conn.commit()
+
+            last_msg_time = datetime.datetime.now()
+            await update_last_msg_time(last_msg_time=last_msg_time)
 
             async def get_screenshot_tomorrow(user_id: int):
                 cursor.execute("SELECT user_group FROM test WHERE user_id = ?", (user_id,))
@@ -460,19 +554,46 @@ async def get_screen_tomorrow(message):
 @bot.message_handler(text=['Расписание на понедельник📅'])
 async def monday(message):
     async def check_monday(user_id: int):
-        need_seconds = 5
-        current_time = datetime.datetime.now()
-        last_datetime = CHAT_BY_DATETIME.get(message.chat.id)
-        if not last_datetime:
-            CHAT_BY_DATETIME[message.chat.id] = current_time
+        date = datetime.datetime.today()
+        print("Получил запрос на скриншот расписания на понедельник от", message.from_user.first_name, ", время запроса =",
+              date.strftime('%H:%M:%S %m.%d '))
+        need_seconds = 7
+        current_time = str(datetime.datetime.now())
+        user_id = message.from_user.id
+        cursor.execute("SELECT last_msg_time FROM test WHERE user_id = ?", (user_id,))
+        last_datetime = cursor.fetchone()
+        last_datetime = last_datetime[0]
+        if last_datetime is None:
+            async def update_last_msg_time(last_msg_time: datetime):
+                us_id = message.from_user.id
+                sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+                column_values = (last_msg_time, us_id)
+                cursor.execute(sqlite_update_query, column_values)
+                conn.commit()
+
+            last_msg_time = datetime.datetime.now()
+            await update_last_msg_time(last_msg_time=last_msg_time)
         else:
-            delta_seconds = (current_time - last_datetime).total_seconds()
+
+            dt_from_datetime = datetime.datetime.strptime(current_time, '%Y-%m-%d %H:%M:%S.%f')
+            dt_to_datetime = datetime.datetime.strptime(last_datetime, '%Y-%m-%d %H:%M:%S.%f')
+
+            delta_seconds = (dt_from_datetime - dt_to_datetime).total_seconds()
             seconds_left = int(need_seconds - delta_seconds)
 
             if seconds_left > 0:
                 await bot.reply_to(message, f'Подождите {seconds_left} секунд перед выполнение этой команды')
             else:
-                CHAT_BY_DATETIME[message.chat.id] = current_time
+                async def update_last_msg_time(last_msg_time: datetime):
+                    us_id = message.from_user.id
+                    sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+                    column_values = (last_msg_time, us_id)
+                    cursor.execute(sqlite_update_query, column_values)
+                    conn.commit()
+
+                last_msg_time = datetime.datetime.now()
+                await update_last_msg_time(last_msg_time=last_msg_time)
+
                 cursor.execute("SELECT user_group FROM test WHERE user_id = ?", (user_id,))
                 group = cursor.fetchone()
 
@@ -531,18 +652,43 @@ async def monday(message):
 async def profile(message):
     async def show_profile(user_id: int):
         need_seconds = 5
-        current_time = datetime.datetime.now()
-        last_datetime = CHAT_BY_DATETIME.get(message.chat.id)
-        if not last_datetime:
-            CHAT_BY_DATETIME[message.chat.id] = current_time
+        current_time = str(datetime.datetime.now())
+        user_id = message.from_user.id
+        cursor.execute("SELECT last_msg_time FROM test WHERE user_id = ?", (user_id,))
+        last_datetime = cursor.fetchone()
+        last_datetime = last_datetime[0]
+        if last_datetime is None:
+            async def update_last_msg_time(last_msg_time: datetime):
+                us_id = message.from_user.id
+                sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+                column_values = (last_msg_time, us_id)
+                cursor.execute(sqlite_update_query, column_values)
+                conn.commit()
+
+            last_msg_time = datetime.datetime.now()
+            await update_last_msg_time(last_msg_time=last_msg_time)
         else:
-            delta_seconds = (current_time - last_datetime).total_seconds()
+
+            dt_from_datetime = datetime.datetime.strptime(current_time, '%Y-%m-%d %H:%M:%S.%f')
+            dt_to_datetime = datetime.datetime.strptime(last_datetime, '%Y-%m-%d %H:%M:%S.%f')
+
+            delta_seconds = (dt_from_datetime - dt_to_datetime).total_seconds()
             seconds_left = int(need_seconds - delta_seconds)
 
             if seconds_left > 0:
-                return f'Подождите {seconds_left} секунд перед выполнение этой команды'
+                time = f'Подождите {seconds_left} секунд перед выполнение этой команды'
+                return time
             else:
-                CHAT_BY_DATETIME[message.chat.id] = current_time
+                async def update_last_msg_time(last_msg_time: datetime):
+                    us_id = message.from_user.id
+                    sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+                    column_values = (last_msg_time, us_id)
+                    cursor.execute(sqlite_update_query, column_values)
+                    conn.commit()
+
+                last_msg_time = datetime.datetime.now()
+                await update_last_msg_time(last_msg_time=last_msg_time)
+
                 cursor.execute("SELECT user_group FROM test WHERE user_id = ?", (user_id,))
                 group = cursor.fetchone()
                 cursor.execute("SELECT nickname FROM test WHERE user_id = ?", (user_id,))
@@ -564,19 +710,44 @@ async def profile(message):
 @bot.message_handler(text=['Помощь❓'])
 async def get_help(message):
     need_seconds = 5
-    current_time = datetime.datetime.now()
-    last_datetime = CHAT_BY_DATETIME.get(message.chat.id)
-    if not last_datetime:
-        CHAT_BY_DATETIME[message.chat.id] = current_time
-    else:
-        delta_seconds = (current_time - last_datetime).total_seconds()
-        seconds_left = int(need_seconds - delta_seconds)
+    current_time = str(datetime.datetime.now())
+    user_id = message.from_user.id
+    cursor.execute("SELECT last_msg_time FROM test WHERE user_id = ?", (user_id,))
+    last_datetime = cursor.fetchone()
+    last_datetime = last_datetime[0]
 
-        if seconds_left > 0:
-            await bot.reply_to(message, f'Подождите {seconds_left} секунд перед выполнение этой команды')
-        else:
-            CHAT_BY_DATETIME[message.chat.id] = current_time
-            await bot.reply_to(message, HELP_TEXT)
+    if last_datetime is None:
+        async def update_last_msg_time(last_msg_time: datetime):
+            us_id = message.from_user.id
+            sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+            column_values = (last_msg_time, us_id)
+            cursor.execute(sqlite_update_query, column_values)
+            conn.commit()
+
+        last_msg_time = datetime.datetime.now()
+        await update_last_msg_time(last_msg_time=last_msg_time)
+    else:
+        pass
+    dt_from_datetime = datetime.datetime.strptime(current_time, '%Y-%m-%d %H:%M:%S.%f')
+    dt_to_datetime = datetime.datetime.strptime(last_datetime, '%Y-%m-%d %H:%M:%S.%f')
+
+    delta_seconds = (dt_from_datetime - dt_to_datetime).total_seconds()
+    seconds_left = int(need_seconds - delta_seconds)
+
+    if seconds_left > 0:
+        await bot.reply_to(message, f'Подождите {seconds_left} секунд перед выполнение этой команды')
+    else:
+        async def update_last_msg_time(last_msg_time: datetime):
+            us_id = message.from_user.id
+            sqlite_update_query = 'UPDATE test SET last_msg_time = ? WHERE user_id = ?'
+            column_values = (last_msg_time, us_id)
+            cursor.execute(sqlite_update_query, column_values)
+            conn.commit()
+
+        last_msg_time = datetime.datetime.now()
+        await update_last_msg_time(last_msg_time=last_msg_time)
+
+        await bot.reply_to(message, HELP_TEXT)
 
 
 @bot.message_handler(chat_id=[702999620], commands=['admin_check'])
@@ -594,15 +765,6 @@ async def admin_rep(message):
     for k, v in d.items():
         tomorrow = pendulum.tomorrow('Europe/Moscow').format('YYYY-MM-DD')
 
-        async def send_new():
-            browser = await launch()
-            page = await browser.newPage()
-            await page.setViewport({'width': 850, 'height': 1050})
-            await page.goto(f'https://almetpt.ru/2020/site/schedule/group/{v}/{tomorrow}')
-            await page.screenshot({'path': f"screenshots/{k}_tomorrow.png"})
-            await browser.close()
-            return f"screenshots/{k}_tomorrow.png"
-
     url = f'https://almetpt.ru/2020/site/schedule/group/{v}/{tomorrow}'
     response_check_tomorrow = requests.get(url=url)
     soup = BeautifulSoup(response_check_tomorrow.text, 'lxml')
@@ -617,9 +779,7 @@ async def admin_rep(message):
         start_time = time.time()
         for k, v in d.items():
             try:
-                screen = await send_new()
-                await bot.send_message(k, "Вышло расписание на завтра!")
-                await bot.send_photo(k, open(screen, 'rb'))
+                await bot.send_message(k, "<b>Вышло расписание на завтра❗</b>")
                 amount_message += 1
             except:
                 amount_bad += 1
@@ -660,4 +820,4 @@ if __name__ == "__main__":
             asyncio.run(bot.polling(skip_pending=True))
         except Exception as e:
             telebot.logger.error(e)
-            time.sleep(15)
+            time.sleep(5)
